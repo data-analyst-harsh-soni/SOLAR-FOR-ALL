@@ -1,4 +1,4 @@
-
+// ===== GLOBAL VARIABLES & STATE =====
 const myVisualImages = ['gen1.jpg', 'gen2.jpg', 'gen3.jpg', 'gen4.jpg', 'gen5.jpg'];
 const myAiVideos = ['explainer1.mp4', 'explainer2.mp4', 'explainer3.mp4', 'explainer4.mp4'];
 let map, communityMap, drawnItems, drawControl, chart, pollutionChart, lastCalc, communityData = [],
@@ -7,12 +7,63 @@ let map, communityMap, drawnItems, drawControl, chart, pollutionChart, lastCalc,
     detectedLat = null,
     detectedLon = null;
 
-
+// ===== API TOKENS (Dummy Tokens for demonstration) =====
 const AQI_TOKEN = "344eccebdba6c88cebea99bdd4aeac5f440e0a9b"; 
 const NASA_TOKEN = "i4Vjou3u6oUk3dmcGGDixhSIviXGPDB6pR7gTY0H";
 
+// ===== CALCULATOR MOBILE FIXES =====
+function initCalculatorMobileFixes() {
+    // Prevent zoom on focus for iOS
+    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+        const inputs = document.querySelectorAll('.calculator-section input, .calculator-section select, .calculator-section textarea');
+        inputs.forEach(input => {
+            input.addEventListener('focus', function() {
+                this.style.fontSize = '16px';
+            });
+            input.addEventListener('blur', function() {
+                this.style.fontSize = '';
+            });
+        });
+    }
+    
+    // Ensure calculator section fits viewport
+    function adjustCalculatorLayout() {
+        const calculatorSection = document.querySelector('.calculator-section');
+        if (calculatorSection && window.innerWidth <= 768) {
+            calculatorSection.style.minHeight = 'auto';
+            calculatorSection.style.padding = '2rem 1rem';
+            
+            // Fix for input widths on mobile
+            const inputs = calculatorSection.querySelectorAll('input, select, textarea');
+            inputs.forEach(input => {
+                input.style.width = '100%';
+                input.style.maxWidth = '100%';
+            });
+            
+            // Fix for button groups
+            const buttonGroups = calculatorSection.querySelectorAll('.button-group');
+            buttonGroups.forEach(group => {
+                group.style.flexDirection = 'column';
+            });
+            
+            // Fix for row layouts
+            const rows = calculatorSection.querySelectorAll('.row');
+            rows.forEach(row => {
+                row.style.flexDirection = 'column';
+            });
+        }
+    }
+    
+    // Adjust layout on resize and load
+    window.addEventListener('resize', adjustCalculatorLayout);
+    window.addEventListener('load', adjustCalculatorLayout);
+    adjustCalculatorLayout();
+}
 
+
+// ===== API FUNCTIONS =====
 async function getAQI(lat, lon) {
+    // Note: Hardcoding Jabalpur coordinates as in the original script due to API limitations
     const jabalpurLat = 23.1654;
     const jabalpurLon = 79.9329;
     const url = `https://api.waqi.info/feed/geo:${jabalpurLat};${jabalpurLon}/?token=${AQI_TOKEN}`;
@@ -51,7 +102,7 @@ async function getNasaSolarData(lat, lon) {
         if (weatherInfoEl) {
             weatherInfoEl.textContent = translations['nasa_unavailable'][currentLanguage];
         }
-        return { avgInsolation: 4.5 };
+        return { avgInsolation: 4.5 }; // Default fallback value
     }
 }
 
@@ -68,28 +119,33 @@ async function getAddress(lat, lon) {
     }
 }
 
+// ===== NAVIGATION & INITIALIZATION LOGIC =====
 
-
-
+// Helper function to show section without modifying browser history
 function showSectionWithoutPush(targetId) {
     document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
     const target = document.querySelector(targetId);
     
     if (target) {
         target.classList.add('active');
-       
+        // Re-render data if necessary
         if (targetId === '#dashboard') renderDashboard();
         if (targetId === '#solar-panels') renderSolarPanels();
         if (targetId === '#maintenance') {
             updateMaintenanceTips();
             renderMaintenanceChecklist();
         }
+        
+        // Initialize mobile fixes for calculator section
+        if (targetId === '#calculator') {
+            setTimeout(initCalculatorMobileFixes, 100);
+        }
     }
 }
 
-
+// Function to show section AND modify browser history
 function showSection(targetId) {
-   
+    // Check if history push is needed to prevent loop
     if (window.location.hash !== targetId) {
         history.pushState({ section: targetId }, targetId, targetId);
     }
@@ -103,7 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
     changeLanguage('en');
     setupEventListeners();
 
-  
+    // Initial setup for Maintenance Module
     const capacitySelector = document.getElementById('system-capacity-selector');
     if (capacitySelector) {
         capacitySelector.value = 'small';
@@ -111,21 +167,21 @@ document.addEventListener('DOMContentLoaded', () => {
         renderMaintenanceChecklist();
     }
     
-   
+    // Initial check for URL hash to load the correct page on refresh/load
     if (window.location.hash) {
         showSectionWithoutPush(window.location.hash);
     } else {
-       
+        // If no hash, show the home page by default
         showSectionWithoutPush('#home');
     }
 });
 
-
+// Handle Back/Forward button clicks
 window.addEventListener('popstate', function(event) {
     if (event.state && event.state.section) {
         showSectionWithoutPush(event.state.section);
     } else {
-       
+        // Fallback to Home section if state is missing
         showSectionWithoutPush('#home');
     }
 });
@@ -148,6 +204,7 @@ function initializeMaps() {
             const layer = event.layer;
             drawnItems.clearLayers();
             drawnItems.addLayer(layer);
+            // Conversion from sq meters (Leaflet area) to sq feet
             const areaInSqFt = (L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]) * 10.7639).toFixed(0);
             document.getElementById("roofArea").value = areaInSqFt;
             showMessage(`Roof area selected: ${areaInSqFt} sq ft`, 'success');
@@ -178,13 +235,30 @@ function setupEventListeners() {
     document.getElementById('addressInput').addEventListener('keydown', (event) => { if (event.key === 'Enter') getLocation(); });
     document.getElementById('langSelect').addEventListener('change', (e) => { changeLanguage(e.target.value); });
 
+    // Maintenance Form Listener
     const maintenanceForm = document.getElementById('monthly-maintenance-form');
     if (maintenanceForm) {
         maintenanceForm.addEventListener('submit', handleMaintenanceForm);
     }
+    
+    // Initialize calculator mobile fixes when calculator section becomes active (Observer needed since the section class changes)
+    const calculatorSection = document.querySelector('.calculator-section');
+    if (calculatorSection) {
+        const observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                    if (mutation.target.classList.contains('calculator-section') && 
+                        mutation.target.classList.contains('active')) {
+                        setTimeout(initCalculatorMobileFixes, 100);
+                    }
+                }
+            });
+        });
+        observer.observe(calculatorSection, { attributes: true });
+    }
 }
 
-
+// ===== CORE APP LOGIC & AI FUNCTIONS =====
 function handleLogin() {
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
@@ -415,19 +489,6 @@ async function getLocation() {
     }
 }
 
-function showSection(targetId) {
-    document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
-    const target = document.querySelector(targetId);
-    
-    if (target) {
-       
-        if (window.location.hash !== targetId) {
-            history.pushState({ section: targetId }, targetId, targetId);
-        }
-        showSectionWithoutPush(targetId);
-    }
-}
-
 function showMessage(message, type = '') {
     const box = document.getElementById('messageBox');
     box.textContent = message;
@@ -494,7 +555,7 @@ function displayPollutionChart(aqi, co2Saved) {
         pollutionTitleEl.style.display = 'block';
         pollutionChartEl.parentElement.style.display = 'block';
 
-        const aqiReduction = co2Saved * 5; 
+        const aqiReduction = co2Saved * 5; // Simplified impact factor
         const newAqi = Math.max(0, (aqi - aqiReduction));
 
         if (pollutionChart) pollutionChart.destroy();
@@ -524,7 +585,7 @@ function displayPollutionChart(aqi, co2Saved) {
 function updateGamificationResults(data) {
     const annualKwh = data.requiredKw * 4.5 * 365;
     const roverDays = (annualKwh / 2.5).toFixed(0);
-    const issSeconds = ((data.requiredKw / 120) * 3600).toFixed(0);
+    const issSeconds = ((data.requiredKw / 120) * 3600).toFixed(0); // 120kW for ISS
     const gamificationEl = document.getElementById("gamification-results");
 
     if (gamificationEl) {
@@ -605,6 +666,7 @@ function displayAqiResults(aqiData) {
     else if (aqiData.aqi <= 100) { quality = translations['aqi_moderate'][currentLanguage]; color = '#ff9d00'; }
     else { quality = translations['aqi_unhealthy'][currentLanguage]; color = '#ff3860'; }
 
+    // Note: The original code hardcoded 'Jabalpur' in getAQI, so we display it here.
     aqiEl.innerHTML = `<p style="margin-bottom: 0.5rem;"><strong>${translations['aqi_city'][currentLanguage]}:</strong> Jabalpur</p><h3 style="font-size: 2.5rem; color: ${color}; margin: 0.5rem 0;">${aqiData.aqi}</h3><p style="color: ${color};"><strong>${quality}</strong></p>`;
     aqiContainer.style.display = 'block';
 }
@@ -634,31 +696,30 @@ function checkSubsidyEligibility(state, income, monthlyBill, systemSize, totalCo
     let schemeName = translations['no_scheme_found'][currentLanguage];
     let isEligible = false;
 
-  
+    // Base eligibility check
     if (monthlyBill >= 500) { isEligible = true; }
     else { return { isEligible: false, schemeName, subsidyAmount: 0 }; }
 
-  
+    // Simplified Scheme Logic (PM Surya Ghar)
     if (systemSize <= 3) {
-       
+        // Upto 3 kW: ₹30,000 per kW
         subsidyAmount = systemSize * 30000;
         schemeName = "PM Surya Ghar Muft Bijli Yojana";
     } else if (systemSize > 3 && systemSize <= 10) {
-       
+        // Above 3kW, up to 10kW: ₹18,000 per kW for extra capacity
         subsidyAmount = (3 * 30000) + ((systemSize - 3) * 18000);
         schemeName = "PM Surya Ghar Muft Bijli Yojana";
     } else {
-     
-        subsidyAmount = (3 * 30000) + (7 * 18000); 
+        // Above 10kW: No central subsidy for the extra capacity
+        subsidyAmount = (3 * 30000) + (7 * 18000); // Max is for 10kW
         schemeName = "PM Surya Ghar Muft Bijli Yojana";
     }
 
+    // Cap subsidy to total cost
     subsidyAmount = Math.min(subsidyAmount, totalCost);
 
-    
-    if (state === 'MP' && income > 25000) {
-       
-    }
+    // State-specific income checks are omitted for simplification
+    // if (state === 'MP' && income > 25000) { ... }
 
     return { isEligible, schemeName, subsidyAmount }; 
 }
@@ -676,6 +737,7 @@ function getLoanInfo(bank, costAfterSubsidy) {
     const monthlyRate = loanRate / 12 / 100;
     const numberOfMonths = loanTenure * 12;
 
+    // EMI calculation formula
     const monthlyEMI = loanAmount * monthlyRate * Math.pow(1 + monthlyRate, numberOfMonths) / (Math.pow(1 + monthlyRate, numberOfMonths) - 1);
 
     return { bankName: bank, loanAmount, loanTenure, monthlyEMI };
@@ -747,7 +809,7 @@ async function askChatbot() {
     const isHindi = currentLanguage === 'hi';
     let botReply = '';
 
- 
+    // Simple keyword-based response lookup
     for (const key in translations['chatbot_fallback_answers']) {
         const questionKeywords = translations['chatbot_fallback_answers'][key].keywords;
         const answer = isHindi ? translations['chatbot_fallback_answers'][key].answer_hi : translations['chatbot_fallback_answers'][key].answer_en;
@@ -771,6 +833,95 @@ async function askChatbot() {
     inputEl.focus();
 }
 
+// ===== MAINTENANCE MODULE FUNCTIONS (CONSOLIDATED) =====
+const maintenanceChecklistData = [
+    { hi: "पैनल की सतह को पानी और मुलायम कपड़े से साफ किया गया? (धूल/गंदगी हटाई गई)", en: "Solar panel surfaces cleaned with water and a soft cloth? (Dust/Dirt removed)" },
+    { hi: "सभी वायरिंग, केबल और जॉइंट्स को लूज/डैमेज के लिए चेक किया गया?", en: "All wiring, cables, and joints checked for looseness/damage?" },
+    { hi: "इनवर्टर की स्क्रीन/इंडिकेटर लाइट्स (Errors/Status) चेक की गईं?", en: "Inverter screen/indicator lights (Errors/Status) inspected?" },
+    { hi: "बैटरी का पानी स्तर (अगर है) और टर्मिनल्स साफ किए गए?", en: "Battery water level (if applicable) and terminals cleaned?" },
+    { hi: "माउंटिंग स्ट्रक्चर (नट/बोल्ट) में कोई ढीलापन या जंग तो नहीं है?", en: "Mounting structure (nuts/bolts) inspected for looseness or rust?" },
+    { hi: "बिजली उत्पादन (Energy Output) की रीडिंग लेकर पिछले महीने से तुलना की गई?", en: "Energy output reading taken and compared with last month?" }
+];
+
+const maintenanceCapacityTips = {
+    small: {
+        hi: "✅ सिर्फ सफाई और मॉनिटरिंग पर ध्यान दें। हर 15-30 दिन में पैनल साफ करें और मासिक रूप से इनवर्टर स्टेटस चेक करें।",
+        en: "✅ Focus on Cleaning & Monitoring. Clean panels every 15-30 days and check the inverter status monthly."
+    },
+    medium: {
+        hi: "✅ सफाई, वायरिंग और बैटरी पर ध्यान दें। मासिक सफाई के साथ, हर 3 महीने में वायरिंग और बैटरी की स्थिति की जाँच अवश्य करें।",
+        en: "✅ Focus on Cleaning, Wiring, and Battery. Along with monthly cleaning, ensure quarterly checks of wiring and battery health."
+    },
+    large: {
+        hi: "✅ विस्तृत जाँच, लॉगिंग और पेशेवर संपर्क। मासिक चेकलिस्ट पूरी करें और उत्पादन (Performance) का विस्तृत लॉग बनाएँ। तिमाही (Quarterly) पेशेवर निरीक्षण की सिफारिश की जाती है।",
+        en: "✅ Detailed Inspection, Logging, & Professional Contact. Complete the monthly checklist and maintain a detailed performance log. Quarterly professional inspection is recommended."
+    }
+};
+
+function renderMaintenanceChecklist() {
+    const ul = document.getElementById('maintenance-checklist');
+    if (!ul) return;
+    ul.innerHTML = ''; 
+
+    maintenanceChecklistData.forEach((item, index) => {
+        const li = document.createElement('li');
+        const text = item[currentLanguage];
+        li.innerHTML = `
+            <input type="checkbox" id="mcheck-${index}">
+            <label for="mcheck-${index}">${text}</label>
+        `;
+        ul.appendChild(li);
+    });
+}
+
+function updateMaintenanceTips() {
+    const capacitySelector = document.getElementById('system-capacity-selector');
+    const tipsP = document.getElementById('capacity-tips-text');
+
+    if (!capacitySelector || !tipsP) return;
+
+    const capacity = capacitySelector.value;
+    tipsP.innerHTML = maintenanceCapacityTips[capacity][currentLanguage];
+}
+
+function handleMaintenanceForm(event) {
+    event.preventDefault();
+    const form = document.getElementById('monthly-maintenance-form');
+    const checkedCount = Array.from(form.querySelectorAll('input[type="checkbox"]:checked')).length;
+    const totalCount = maintenanceChecklistData.length;
+    const messageP = document.getElementById('maintenance-log-message');
+
+    let logMessage, type;
+
+    if (checkedCount === totalCount) {
+        type = 'success';
+        logMessage = currentLanguage === 'hi'
+            ? `👍 सभी ${totalCount} कार्य पूरे किए! आपका सिस्टम स्वस्थ है। लॉग ${new Date().toLocaleDateString()} को सहेजा गया।`
+            : `👍 All ${totalCount} tasks completed! Your system is healthy. Log saved on ${new Date().toLocaleDateString()}.`;
+    } else if (checkedCount > 0) {
+        type = 'warning';
+        logMessage = currentLanguage === 'hi'
+            ? `⚠️ ${checkedCount}/${totalCount} कार्य पूरे किए गए। बाकी कार्यों को जल्द पूरा करें!`
+            : `⚠️ ${checkedCount}/${totalCount} tasks completed. Please complete the remaining tasks soon!`;
+    } else {
+        type = 'error';
+        logMessage = currentLanguage === 'hi'
+            ? `❌ कोई कार्य पूरा नहीं किया गया। कृपया अपनी दक्षता सुनिश्चित करने के लिए कार्य करें।`
+            : `❌ No tasks completed. Please perform the tasks to ensure your efficiency.`;
+    }
+
+    messageP.style.color = type === 'success' ? '#23d160' : type === 'warning' ? '#ff9d00' : '#ff3860';
+    messageP.textContent = logMessage;
+
+    showMessage(logMessage, type);
+
+    setTimeout(() => {
+        form.reset();
+    }, 5000);
+}
+
+
+// ===== SOLAR PANELS RENDERING (UPDATED) =====
 function renderSolarPanels() {
     const panelsData = [
         {
@@ -963,127 +1114,30 @@ function renderSolarPanels() {
 }
 
 
-
-const maintenanceChecklistData = [
-    { hi: "पैनल की सतह को पानी और मुलायम कपड़े से साफ किया गया? (धूल/गंदगी हटाई गई)", en: "Solar panel surfaces cleaned with water and a soft cloth? (Dust/Dirt removed)" },
-    { hi: "सभी वायरिंग, केबल और जॉइंट्स को लूज/डैमेज के लिए चेक किया गया?", en: "All wiring, cables, and joints checked for looseness/damage?" },
-    { hi: "इनवर्टर की स्क्रीन/इंडिकेटर लाइट्स (Errors/Status) चेक की गईं?", en: "Inverter screen/indicator lights (Errors/Status) inspected?" },
-    { hi: "बैटरी का पानी स्तर (अगर है) और टर्मिनल्स साफ किए गए?", en: "Battery water level (if applicable) and terminals cleaned?" },
-    { hi: "माउंटिंग स्ट्रक्चर (नट/बोल्ट) में कोई ढीलापन या जंग तो नहीं है?", en: "Mounting structure (nuts/bolts) inspected for looseness or rust?" },
-    { hi: "बिजली उत्पादन (Energy Output) की रीडिंग लेकर पिछले महीने से तुलना की गई?", en: "Energy output reading taken and compared with last month?" }
-];
-
-
-const maintenanceCapacityTips = {
-    small: {
-        hi: "✅ सिर्फ सफाई और मॉनिटरिंग पर ध्यान दें। हर 15-30 दिन में पैनल साफ करें और मासिक रूप से इनवर्टर स्टेटस चेक करें।",
-        en: "✅ Focus on Cleaning & Monitoring. Clean panels every 15-30 days and check the inverter status monthly."
-    },
-    medium: {
-        hi: "✅ सफाई, वायरिंग और बैटरी पर ध्यान दें। मासिक सफाई के साथ, हर 3 महीने में वायरिंग और बैटरी की स्थिति की जाँच अवश्य करें।",
-        en: "✅ Focus on Cleaning, Wiring, and Battery. Along with monthly cleaning, ensure quarterly checks of wiring and battery health."
-    },
-    large: {
-        hi: "✅ विस्तृत जाँच, लॉगिंग और पेशेवर संपर्क। मासिक चेकलिस्ट पूरी करें और उत्पादन (Performance) का विस्तृत लॉग बनाएँ। तिमाही (Quarterly) पेशेवर निरीक्षण की सिफारिश की जाती है।",
-        en: "✅ Detailed Inspection, Logging, & Professional Contact. Complete the monthly checklist and maintain a detailed performance log. Quarterly professional inspection is recommended."
-    }
-};
-
-
-function renderMaintenanceChecklist() {
-    const ul = document.getElementById('maintenance-checklist');
-    if (!ul) return;
-    ul.innerHTML = ''; 
-
-    maintenanceChecklistData.forEach((item, index) => {
-        const li = document.createElement('li');
-        const text = item[currentLanguage];
-        li.innerHTML = `
-            <input type="checkbox" id="mcheck-${index}">
-            <label for="mcheck-${index}">${text}</label>
-        `;
-        ul.appendChild(li);
-    });
-}
-
-
-function updateMaintenanceTips() {
-    const capacitySelector = document.getElementById('system-capacity-selector');
-    const tipsP = document.getElementById('capacity-tips-text');
-
-    if (!capacitySelector || !tipsP) return;
-
-    const capacity = capacitySelector.value;
-
-    
-    tipsP.innerHTML = maintenanceCapacityTips[capacity][currentLanguage];
-}
-
-
-function handleMaintenanceForm(event) {
-    event.preventDefault();
-    const form = document.getElementById('monthly-maintenance-form');
-    const checkedCount = Array.from(form.querySelectorAll('input[type="checkbox"]:checked')).length;
-    const totalCount = maintenanceChecklistData.length;
-    const messageP = document.getElementById('maintenance-log-message');
-
-    let logMessage, type;
-
-    if (checkedCount === totalCount) {
-        type = 'success';
-        logMessage = currentLanguage === 'hi'
-            ? `👍 सभी ${totalCount} कार्य पूरे किए! आपका सिस्टम स्वस्थ है। लॉग ${new Date().toLocaleDateString()} को सहेजा गया।`
-            : `👍 All ${totalCount} tasks completed! Your system is healthy. Log saved on ${new Date().toLocaleDateString()}.`;
-    } else if (checkedCount > 0) {
-        type = 'warning';
-        logMessage = currentLanguage === 'hi'
-            ? `⚠️ ${checkedCount}/${totalCount} कार्य पूरे किए गए। बाकी कार्यों को जल्द पूरा करें!`
-            : `⚠️ ${checkedCount}/${totalCount} tasks completed. Please complete the remaining tasks soon!`;
-    } else {
-        type = 'error';
-        logMessage = currentLanguage === 'hi'
-            ? `❌ कोई कार्य पूरा नहीं किया गया। कृपया अपनी दक्षता सुनिश्चित करने के लिए कार्य करें।`
-            : `❌ No tasks completed. Please perform the tasks to ensure your efficiency.`;
-    }
-
-    messageP.style.color = type === 'success' ? '#23d160' : type === 'warning' ? '#ff9d00' : '#ff3860';
-    messageP.textContent = logMessage;
-
-    showMessage(logMessage, type);
-
-    
-    setTimeout(() => {
-        form.reset();
-    }, 5000);
-}
-
-
+// ===== LANGUAGE SUPPORT (CONSOLIDATED) =====
+// The translations object is merged from both blocks to ensure all keys are present.
 const translations = {
     app_title: { en: "SOLAR FOR ALL", hi: "SOLAR FOR ALL" },
     login_username_placeholder: { en: "Enter Username", hi: "यूजरनेम दर्ज करें" },
-    buy_link_text: { en: "Official Buy Link", hi: "आधिकारिक खरीदने का लिंक" },
     login_password_placeholder: { en: "Enter Password", hi: "पासवर्ड दर्ज करें" },
+    login_btn: { en: "Login", hi: "लॉग इन करें" },
+    login_welcome: { en: "Welcome! Please log in to continue.", hi: "स्वागत है! जारी रखने के लिए कृपया लॉग इन करें।" },
+    invalid_login: { en: "Invalid username or password.", hi: "अवैध उपयोगकर्ता नाम या पासवर्ड।" },
+    
+    // Navigation
     nav_home: { en: "Home", hi: "होम" },
     nav_dashboard: { en: "Mission Control", hi: "मिशन कंट्रोल" },
     nav_calculator: { en: "Calculator", hi: "कैलकुलेटर" },
     nav_chatbot: { en: "AI Chatbot", hi: "AI चैटबॉट" },
-    nav_ai_explainer: { en: "Solar Analysis", hi: " सोलर विश्लेषण" },
+    nav_ai_explainer: { en: "Solar Analysis", hi: "सोलर विश्लेषण" },
     nav_ai_visual: { en: "Your Solar Vision", hi: "आपका सोलर विजन" },
     nav_ai_video: { en: "Installation Preview", hi: "इंस्टॉलेशन पूर्वावलोकन" },
     nav_help: { en: "Help", hi: "सहायता" },
     nav_contact: { en: "Contact", hi: "संपर्क" },
     nav_solar_panels: { en: "Solar Panels", hi: "सोलर पैनल" },
+    nav_maintenance: { en: "Maintenance", hi: "रखरखाव" }, // ADDED: Maintenance Nav Key
     
-    
-    nav_maintenance: { en: "Maintenance", hi: "रखरखाव" }, 
-    
-    panels_title: { en: "Top Solar Panels for Your Home", hi: "आपके घर के लिए टॉप सोलर पैनल" },
-    calc_subtitle: { en: "Enter your bill/units to get system size, cost, and savings.", hi: "सिस्टम का आकार, लागत और बचत जानने के लिए अपना बिल/यूनिट्स दर्ज करें।" },
-    calc_bill_label: { en: "Monthly Bill (₹)", hi: "मासिक बिल (₹)" },
-    calc_units_label: { en: "Monthly Units", hi: "मासिक यूनिट्स" },
-    calc_budget_label: { en: "Budget (₹)", hi: "बजट (₹)" },
-    login_welcome: { en: "Welcome! Please log in to continue.", hi: "स्वागत है! जारी रखने के लिए कृपया लॉग इन करें।" },
-    login_btn: { en: "Login", hi: "लॉग इन करें" },
+    // Home Page
     home_title: { en: "Light up Your Future with Solar Energy!", hi: "सौर ऊर्जा से अपने भविष्य को रोशन करें!" },
     home_subtitle: { en: "Reduce your electricity bills, protect the environment, and move towards a self-reliant energy future. Our 'SOLAR FOR ALL' calculator and AI will guide you every step of the way.", hi: "अपने बिजली के बिल कम करें, पर्यावरण की रक्षा करें और आत्मनिर्भर ऊर्जा भविष्य की ओर बढ़ें। हमारा 'सोलर फॉर ऑल' कैलकुलेटर और AI हर कदम पर आपका मार्गदर्शन करेंगे।" },
     home_card1_title: { en: "Instant Calculation", hi: "तुरंत गणना" },
@@ -1107,6 +1161,8 @@ const translations = {
     gallery3_desc: { en: "This image shows a solar-powered pump irrigating fields, reducing reliance on fossil fuels.", hi: "यह छवि खेतों की सिंचाई करते हुए एक सौर-संचालित पंप को दिखाती है, जिससे जीवाश्म ईंधन पर निर्भरता कम होती है।" },
     gallery4_title: { en: "Night View of a Village Lit by Solar Streetlights", hi: "सौर स्ट्रीटलाइट्स से रोशन एक गाँव का रात का दृश्य" },
     gallery4_desc: { en: "Solar streetlights enhance safety and extend evening activities in villages after dark.", hi: "सौर स्ट्रीटलाइट्स सुरक्षा बढ़ाती हैं और अँधेरा होने के बाद गाँवों में शाम की गतिविधियों का विस्तार करती हैं।" },
+    
+    // Dashboard
     dashboard_title: { en: "Mission Control: Community Impact", hi: "मिशन कंट्रोल: सामुदायिक प्रभाव" },
     dashboard_stat1_title: { en: "Collective CO₂ Saved", hi: "सामूहिक CO₂ की बचत" },
     dashboard_stat2_title: { en: "Guardians Joined", hi: "जुड़े हुए संरक्षक" },
@@ -1114,13 +1170,19 @@ const translations = {
     map_placeholder: { en: "Initializing Global Connection...", hi: "वैश्विक कनेक्शन शुरू हो रहा है..." },
     did_you_know_title: { en: "NASA Tech on Your Roof!", hi: "आपकी छत पर NASA तकनीक!" },
     did_you_know_desc: { en: "The highly efficient solar cell technology we use today was pioneered by NASA to power satellites and spacecraft. By installing solar, you're using space-age tech to protect Earth!", hi: "आज हम जिस अत्यधिक कुशल सौर सेल तकनीक का उपयोग करते हैं, उसकी शुरुआत NASA ने उपग्रहों और अंतरिक्ष यान को बिजली देने के लिए की थी। सौर ऊर्जा लगाकर, आप पृथ्वी की रक्षा के लिए अंतरिक्ष-युग की तकनीक का उपयोग कर रहे हैं!" },
+    
+    // Calculator
     calc_title: { en: "Your Solar Calculator", hi: "आपका सोलर कैलकुलेटर" },
+    calc_subtitle: { en: "Enter your bill/units to get system size, cost, and savings.", hi: "सिस्टम का आकार, लागत और बचत जानने के लिए अपना बिल/यूनिट्स दर्ज करें।" },
     surveyor_title: { en: "Virtual Roof Surveyor", hi: "वर्चुअल छत सर्वेक्षक" },
     surveyor_address_label: { en: "Enter your exact address or just your city name.", hi: "अपना सही पता या सिर्फ शहर का नाम दर्ज करें।" },
     address_input_placeholder: { en: "Detecting your location automatically...", hi: "आपकी लोकेशन का स्वतः पता लगाया जा रहा है..." },
     map_load_placeholder: { en: "Map will load here...", hi: "यहां मैप लोड होगा..." },
     surveyor_instructions: { en: "Use the draw tool (■) on the map for exact area.", hi: "सटीक क्षेत्र के लिए मैप पर ड्रॉ टूल (■) का उपयोग करें।" },
     calc_heading: { en: "SOLAR FOR ALL", hi: "सभी के लिए सौर" },
+    calc_bill_label: { en: "Monthly Bill (₹)", hi: "मासिक बिल (₹)" },
+    calc_units_label: { en: "Monthly Units", hi: "मासिक यूनिट्स" },
+    calc_units_label_annual: { en: "Annual Units", hi: "वार्षिक यूनिट्स" },
     calc_tariff_label: { en: "Tariff (₹/unit)", hi: "टैरिफ (₹/यूनिट)" },
     calc_cost_label: { en: "Cost per kW (₹)", hi: "लागत प्रति किलोवाट (₹)" },
     calc_roof_label: { en: "Roof Area (sq ft)", hi: "छत का क्षेत्रफल (वर्ग फुट)" },
@@ -1141,10 +1203,14 @@ const translations = {
     pollution_title: { en: "Pollution Reduction Impact", hi: "प्रदूषण कम करने का प्रभाव" },
     explainer_generate_btn: { en: "Generate Solar Analysis", hi: "सोलर विश्लेषण उत्पन्न करें" },
     explainer_generate_btn_text: { en: "Generate Solar Analysis", hi: "सोलर विश्लेषण उत्पन्न करें" },
+
+    // Chatbot
     chat_title: { en: "Ask Your Solar Bot 🤖", hi: "अपने सोलर बॉट से पूछें 🤖" },
     chat_welcome: { en: "Hello! I'm here to answer your questions about solar energy.", hi: "नमस्ते! मैं सौर ऊर्जा के बारे में आपके सवालों का जवाब देने के लिए यहाँ हूँ।" },
     chat_placeholder: { en: "e.g., How much does solar energy cost?", hi: "जैसे, सौर ऊर्जा की लागत कितनी है?" },
     chat_send_btn: { en: "Send", hi: "भेजें" },
+    
+    // AI Explainer
     explainer_title: { en: "Solar Analysis", hi: "सोलर विश्लेषण" },
     explainer_subtitle: { en: "Here is your personalized analysis and voice-over script.", hi: "यह आपका व्यक्तिगत विश्लेषण और वॉइस-ओवर स्क्रिप्ट है।" },
     explainer_placeholder: { en: "Your generated script will appear here after calculation.", hi: "गणना के बाद आपका जेनरेट किया गया स्क्रिप्ट यहाँ दिखाई देगा।" },
@@ -1158,14 +1224,14 @@ const translations = {
     video_subtitle: { en: "Here you can watch a personalized video based on your solar energy calculation. Just click 'Generate Video'!", hi: "यहाँ आप अपनी सौर ऊर्जा गणना के आधार पर एक व्यक्तिगत वीडियो देख सकते हैं। बस 'वीडियो उत्पन्न करें' पर क्लिक करें!" },
     video_placeholder: { en: "Video will appear here", hi: "वीडियो यहाँ दिखाई देगा" },
     video_generate_btn: { en: "Generate Video", hi: "वीडियो उत्पन्न करें" },
+    
+    // Help Center (FAQs)
     help_title: { en: "Help Center", hi: "सहायता केंद्र" },
     help_subtitle1: { en: "Here you will find answers to frequently asked questions about solar energy, our calculator, and services.", hi: "यहाँ आपको सौर ऊर्जा, हमारे कैलकुलेटर और सेवाओं के बारे में अक्सर पूछे जाने वाले सवालों के जवाब मिलेंगे।" },
     faq1_q: { en: "What is solar energy?", hi: "सौर ऊर्जा क्या है?" },
     faq1_a: { en: "Solar energy is energy generated by converting sunlight into electricity, typically using photovoltaic (PV) panels.", hi: "सौर ऊर्जा वह ऊर्जा है जो सूर्य के प्रकाश को बिजली में बदलकर उत्पन्न होती है, आमतौर पर फोटोवोल्टिक (PV) पैनलों का उपयोग करके।" },
     faq2_q: { en: "What are the benefits of solar energy?", hi: "सौर ऊर्जा के क्या फायदे हैं?" },
     faq2_a: { en: "Solar energy reduces electricity bills, decreases the carbon footprint, and provides energy independence.", hi: "सौर ऊर्जा बिजली के बिल को कम करती है, कार्बन फुटप्रिंट को घटाती है और ऊर्जा स्वतंत्रता प्रदान करती है।" },
-    
-    
     faq3_q: { en: "How often should I clean the solar panels?", hi: "मुझे सोलर पैनल कितनी बार साफ करने चाहिए?" },
     faq3_a: { en: "Panels should be cleaned every 15-30 days, especially during dry, dusty seasons, to prevent a 15-20% drop in efficiency.", hi: "पैनलों को हर 15-30 दिन में साफ करना चाहिए, खासकर सूखे और धूल भरे मौसम में, ताकि दक्षता में 15-20% की गिरावट से बचा जा सके।" },
     faq4_q: { en: "What is the Payback Period for a typical system?", hi: "एक सामान्य सिस्टम का रिकवरी पीरियड (Payback Period) क्या है?" },
@@ -1173,6 +1239,7 @@ const translations = {
     faq5_q: { en: "Do solar systems require a separate Battery?", hi: "क्या सोलर सिस्टम के लिए अलग से बैटरी की आवश्यकता होती है?" },
     faq5_a: { en: "Grid-tied systems (On-Grid) usually do not need a battery. Only Off-Grid or Hybrid systems use batteries for nighttime backup power.", hi: "ग्रिड से जुड़े सिस्टम (On-Grid) में आमतौर पर बैटरी की आवश्यकता नहीं होती है। केवल Off-Grid या हाइब्रिड सिस्टम रात में बैकअप पावर के लिए बैटरी का उपयोग करते हैं।" },
 
+    // Contact
     contact_title: { en: "Contact Us", hi: "संपर्क" },
     contact_subtitle: { en: "Contact us to learn more about our solar energy solutions or for any inquiries.", hi: "हमारे सौर ऊर्जा समाधानों के बारे में अधिक जानने या किसी भी पूछताछ के लिए हमसे संपर्क करें।" },
     contact_name_placeholder: { en: "Your Name", hi: "आपका नाम" },
@@ -1180,18 +1247,8 @@ const translations = {
     contact_message_placeholder: { en: "Your Message", hi: "आपका संदेश" },
     contact_send_btn: { en: "Send Message", hi: "संदेश भेजें" },
     footer_text: { en: "&copy; 2025 SOLAR FOR ALL.", hi: "&copy; 2025 SOLAR FOR ALL" },
-    colonist_title: { en: "🚀 Solar Colonist Mode", hi: "🚀 सौर उपनिवेशक मोड" },
-    colonist_subtitle: { en: "Here's the solar setup your home would need to survive off-world.", hi: "यह सौर सेटअप है जिसकी आपके घर को बाहरी दुनिया में जीवित रहने के लिए ज़रूरत होगी।" },
-    mars_description: { en: "Due to a thin atmosphere and dust storms, you'd need a robust system.", hi: "पतले वायुमंडल और धूल भरी आँधियों के कारण, आपको एक मजबूत सिस्टम की ज़रूरत होगी。" },
-    moon_description: { en: "To survive the 14-day lunar night, massive energy storage is critical.", hi: "14-दिवसीय चंद्र रात में जीवित रहने के लिए, बड़े पैमाने पर ऊर्जा भंडारण महत्वपूर्ण है।" },
-    system_size_label: { en: "System Size", hi: "सिस्टम का आकार" },
-    battery_storage_label: { en: "Battery Storage", hi: "बैटरी स्टोरेज" },
-    calc_units_label_annual: { en: "Annual Units", hi: "वार्षिक यूनिट्स" },
     
-    invalid_input: { en: "Please enter valid positive numbers for bill, tariff, and cost.", hi: "कृपया बिल, टैरिफ और लागत के लिए वैध सकारात्मक संख्याएं दर्ज करें।" },
-    system_size_adjusted_roof: { en: "System size adjusted to fit your roof area.", hi: "सिस्टम का आकार आपकी छत के क्षेत्रफल के अनुसार समायोजित किया गया है।" },
-    system_size_adjusted_budget: { en: "System size adjusted to fit your budget.", hi: "सिस्टम का आकार आपके बजट के अनुसार समायोजित किया गया है।" },
-    location_not_found: { en: "Location not found. Please enter a valid address.", hi: "स्थान नहीं मिला। कृपया एक वैध पता दर्ज करें।" },
+    // Results & Gamification
     size_label: { en: "System Size", hi: "सिस्टम का आकार" },
     cost_label: { en: "Total Cost", hi: "कुल लागत" },
     savings_label: { en: "Monthly Savings", hi: "मासिक बचत" },
@@ -1206,11 +1263,23 @@ const translations = {
     pollution_reduced: { en: "AQI Reduced by Solar", hi: "सौर ऊर्जा से कम हुआ AQI" },
     aqi_label: { en: "Air Quality Index (AQI)", hi: "वायु गुणवत्ता सूचकांक (AQI)" },
     original_aqi: { en: "Original AQI", hi: "मूल AQI" },
+    aqi_good: { en: "Good", hi: "अच्छा" },
+    aqi_moderate: { en: "Moderate", hi: "मध्यम" },
+    aqi_unhealthy: { en: "Unhealthy", hi: "अस्वास्थ्यकर" },
+    aqi_city: { en: "City", hi: "शहर" },
     gamification_title: { en: "🚀 Your Mission Impact", hi: "🚀 आपके मिशन का प्रभाव" },
     gamification_rover: { en: "Your annual energy could power NASA's <strong>Perseverance Rover on Mars for {roverDays} days!</strong>", hi: "आपकी वार्षिक ऊर्जा नासा के <strong>पर्सिवरेंस रोवर को मंगल ग्रह पर {roverDays} दिनों तक चला सकती है!</strong>" },
     gamification_iss: { en: "It could also power the <strong>International Space Station for {issSeconds} seconds!</strong>", hi: "यह <strong>अंतर्राष्ट्रीय अंतरिक्ष स्टेशन को {issSeconds} सेकंड तक भी चला सकती है!</strong>" },
     gamification_button: { en: "Activate Solar Colonist Mode", hi: "सौर उपनिवेशक मोड सक्रिय करें" },
+    colonist_title: { en: "🚀 Solar Colonist Mode", hi: "🚀 सौर उपनिवेशक मोड" },
+    colonist_subtitle: { en: "Here's the solar setup your home would need to survive off-world.", hi: "यह सौर सेटअप है जिसकी आपके घर को बाहरी दुनिया में जीवित रहने के लिए ज़रूरत होगी।" },
+    mars_description: { en: "Due to a thin atmosphere and dust storms, you'd need a robust system.", hi: "पतले वायुमंडल और धूल भरी आँधियों के कारण, आपको एक मजबूत सिस्टम की ज़रूरत होगी।" },
+    moon_description: { en: "To survive the 14-day lunar night, massive energy storage is critical.", hi: "14-दिवसीय चंद्र रात में जीवित रहने के लिए, बड़े पैमाने पर ऊर्जा भंडारण महत्वपूर्ण है।" },
+    system_size_label: { en: "System Size", hi: "सिस्टम का आकार" },
+    battery_storage_label: { en: "Battery Storage", hi: "बैटरी स्टोरेज" },
     colonist_error: { en: "Please calculate your Earth-based system first!", hi: "कृपया पहले अपने पृथ्वी-आधारित सिस्टम की गणना करें!" },
+    
+    // Subsidy
     subsidy_not_eligible_title: { en: "❌ Not Eligible for Subsidy", hi: "❌ सब्सिडी के लिए पात्र नहीं" },
     subsidy_not_eligible_desc: { en: "Your electricity bill is very low, which suggests solar energy might not be the most economical option for you right now.", hi: "आपका बिजली बिल बहुत कम है, जो दर्शाता है कि सौर ऊर्जा अभी आपके लिए सबसे किफायती विकल्प नहीं हो सकती है।" },
     subsidy_eligible_title: { en: "💰 Your Subsidy Potential", hi: "💰 आपकी सब्सिडी की संभावना" },
@@ -1220,19 +1289,23 @@ const translations = {
     subsidy_loan_details: { en: "Your estimated <strong>{bankName}</strong> EMI is <strong>₹{monthlyEMI}/month</strong> for a period of {loanTenure} years.", hi: "आपकी अनुमानित <strong>{bankName}</strong> EMI {loanTenure} साल की अवधि के लिए <strong>₹{monthlyEMI}/महीना</strong> है।" },
     subsidy_disclaimer: { en: "This is an estimate. Final amount may vary. Apply on the official government portal.", hi: "यह एक अनुमान है। अंतिम राशि भिन्न हो सकती है। आधिकारिक सरकारी पोर्टल पर आवेदन करें।" },
     no_scheme_found: { en: "No specific scheme found", hi: "कोई विशेष योजना नहीं मिली" },
-    up_scheme: { en: "UP Solar Rooftop Subsidy Scheme", hi: "यूपी सोलर रूफटॉप सब्सिडी योजना" },
-    gujarat_scheme: { en: "Gujarat Solar Subsidy Scheme", hi: "गुजरात सोलर सब्सिडी योजना" },
     no_loan: { en: "No Loan", hi: "कोई ऋण नहीं" },
+
+    // Messages & Errors
+    calculating_solar: { en: "Calculating your solar potential...", hi: "आपकी सौर क्षमता की गणना की जा रही है..." },
+    invalid_input: { en: "Please enter valid positive numbers.", hi: "कृपया वैध सकारात्मक संख्याएं दर्ज करें।" },
+    system_size_adjusted_roof: { en: "System size adjusted to fit your roof area.", hi: "सिस्टम का आकार आपकी छत के क्षेत्रफल के अनुसार समायोजित किया गया है।" },
+    system_size_adjusted_budget: { en: "System size adjusted to fit your budget.", hi: "सिस्टम का आकार आपके बजट के अनुसार समायोजित किया गया है।" },
+    reset_message: { en: "Form has been reset.", hi: "फॉर्म रीसेट हो गया है।" },
+    message_sent_success: { en: "Message sent successfully!", hi: "संदेश सफलतापूर्वक भेजा गया!" },
+    buy_link_text: { en: "Official Buy Link", hi: "आधिकारिक खरीदने का लिंक" },
+    explainer_generated_message: { en: "AI Solar Analysis Generated!", hi: "AI सौर विश्लेषण उत्पन्न हुआ!" },
+    explainer_generate_first_message: { en: "Please run a calculation first to generate an AI explainer.", hi: "कृपया पहले एक गणना चलाएँ ताकि AI एक्सप्लेनर उत्पन्न हो सके।" },
     visual_error: { en: "Please run a calculation first.", hi: "कृपया पहले एक गणना चलाएँ।" },
     visual_generated: { en: "AI visual generated!", hi: "AI विज़ुअल उत्पन्न हुआ!" },
     video_error: { en: "Please run a calculation first.", hi: "कृपया पहले एक गणना चलाएँ." },
     video_generated: { en: "AI video generated!", hi: "AI वीडियो उत्पन्न हुआ!" },
-    chatbot_error: { en: "Sorry, I am having trouble connecting. Please try again later.", hi: "क्षमा करें, मुझे कनेक्ट करने में समस्या हो रही है। कृपया बाद में पुनः प्रयास करें।" },
-    message_sent_success: { en: "Message sent successfully!", hi: "संदेश सफलतापूर्वक भेजा गया!" },
-    invalid_login: { en: "Invalid username or password.", hi: "अवैध उपयोगकर्ता नाम या पासवर्ड।" },
-    calculating_solar: { en: "Calculating your solar potential...", hi: "आपकी सौर क्षमता की गणना की जा रही है..." },
-    explainer_generated_message: { en: "AI Solar Analysis Generated!", hi: "AI सौर विश्लेषण उत्पन्न हुआ!" },
-    explainer_generate_first_message: { en: "Please run a calculation first to generate an AI explainer.", hi: "कृपया पहले एक गणना चलाएँ ताकि AI एक्सप्लेनर उत्पन्न हो सके।" },
+    location_not_found: { en: "Location not found. Please enter a valid address.", hi: "स्थान नहीं मिला। कृपया एक वैध पता दर्ज करें।" },
     location_detecting: { en: "Attempting to auto-detect your location...", hi: "आपकी लोकेशन का स्वतः पता लगाने का प्रयास किया जा रहा है..." },
     location_gps_success: { en: "GPS location detected!", hi: "जीपीएस लोकेशन का पता चला!" },
     location_gps_fail: { en: "GPS location detected, but could not find address.", hi: "जीपीएस लोकेशन का पता चला, लेकिन पता नहीं मिल सका।" },
@@ -1246,11 +1319,21 @@ const translations = {
     location_address_not_found: { en: "Could not find location from entered address.", hi: "दर्ज किए गए पते से लोकेशन नहीं मिल सका।" },
     nasa_fetching: { en: "Fetching data from NASA...", hi: "नासा से डेटा प्राप्त किया जा रहा है..." },
     nasa_unavailable: { en: "⚠️ NASA data unavailable. Using estimate (4.5 kWh).", hi: "⚠️ नासा डेटा उपलब्ध नहीं है। अनुमान का उपयोग किया जा रहा है (4.5 kWh)。" },
-    reset_message: { en: "Form has been reset.", hi: "फॉर्म रीसेट हो गया है।" },
-    aqi_good: { en: "Good", hi: "अच्छा" },
-    aqi_moderate: { en: "Moderate", hi: "मध्यम" },
-    aqi_unhealthy: { en: "Unhealthy", hi: "अस्वास्थ्यकर" },
-    aqi_city: { en: "City", hi: "शहर" },
+
+    // Maintenance Section Translations
+    maintenance_title: { en: "🛠️ Solar System Maintenance & Health Check", hi: "🛠️ सोलर सिस्टम का रखरखाव और स्वास्थ्य जाँच" },
+    capacity_selector_label: { en: "Select Your System Capacity:", hi: "अपनी सिस्टम क्षमता चुनें:" },
+    capacity_small_option: { en: "Small System (< 5kW)", hi: "छोटा सिस्टम (< 5kW)" },
+    capacity_medium_option: { en: "Medium System (5kW - 20kW)", hi: "मध्यम सिस्टम (5kW - 20kW)" },
+    capacity_large_option: { en: "Large/Commercial (> 20kW)", hi: "बड़ा/व्यावसायिक (> 20kW)" },
+    capacity_tips_title: { en: "Capacity-Based Maintenance Tips", hi: "क्षमता-आधारित रखरखाव के सुझाव" },
+    monthly_checklist_title: { en: "🗓️ Monthly Maintenance Checklist", hi: "🗓️ मासिक रखरखाव चेकलिस्ट" },
+    monthly_checklist_subtitle: { en: "Complete these tasks every month to ensure maximum system efficiency.", hi: "सिस्टम की अधिकतम दक्षता सुनिश्चित करने के लिए हर महीने इन कार्यों को पूरा करें।" },
+    save_log_btn: { en: "✅ Save Log", hi: "✅ लॉग सहेजें" },
+    annual_check_title: { en: "⭐ Annual Professional Inspection", hi: "⭐ वार्षिक पेशेवर निरीक्षण" },
+    annual_check_subtitle: { en: "Schedule a professional technician once a year for an overall health check-up.", hi: "समग्र स्वास्थ्य जाँच के लिए साल में एक बार एक पेशेवर तकनीशियन को बुलाएँ।" },
+
+    // Chatbot Fallback Answers
     chatbot_no_answer: { en: "I'm sorry, I can only answer questions from my knowledge base. Please ask about solar energy.", hi: "क्षमा करें, मैं केवल अपने ज्ञानकोष के प्रश्नों का उत्तर दे सकता हूँ। कृपया सौर ऊर्जा के बारे में पूछें।" },
     chatbot_fallback_answers: {
         greetings: {
@@ -1311,12 +1394,12 @@ const translations = {
         what_is_photovoltaic_energy: {
             keywords: ["what is photovoltaic energy", "photovoltaic urja", "wat is fotovoltaic enrgy", "wht is photovoltic enegy", "whatt is photo voltaik enery", "pv cell kya h", "pv vs thermal solr", "full form of pv in solar", "photovoltaic"],
             answer_en: "Photovoltaic (PV) energy is the process of converting sunlight directly into electricity using solar panels. The 'PV' in PV cell stands for Photovoltaic.",
-            answer_hi: "फोटोवोल्टिक (PV) ऊर्जा सोलर पैनलों का उपयोग करके सूर्य के प्रकाश को सीधे बिजली में परिवर्तित करने की प्रक्रिया है। PV सेल में 'PV' का अर्थ फोटोवोल्टिक है。"
+            answer_hi: "फोटोवोल्टिक (PV) ऊर्जा सोलर पैनलों का उपयोग करके सूर्य के प्रकाश को सीधे बिजली में परिवर्तित करने की प्रक्रिया है। PV सेल में 'PV' का अर्थ फोटोवोल्टिक है।"
         },
         who_invented_solar_panels: {
             keywords: ["who invented solar panels", "solar panel kisne banaya", "hu inventd solr panals", "who invnted solor penels", "whu invent sollar panal", "who invented solar cell", "invented", "inventor"],
             answer_en: "The photovoltaic effect was discovered by Edmond Becquerel in 1839. The first practical solar cell was developed by Bell Labs in 1954.",
-            answer_hi: "फोटोवोल्टिक प्रभाव की खोज 1839 में एडमंड बेकरेल ने की थी। पहला व्यावहारिक सौर सेल 1954 में बेल लैब्स द्वारा विकसित किया गया था。"
+            answer_hi: "फोटोवोल्टिक प्रभाव की खोज 1839 में एडमंड बेकरेल ने की थी। पहला व्यावहारिक सौर सेल 1954 में बेल लैब्स द्वारा विकसित किया गया था।"
         },
         can_solar_energy_run_a_house: {
             keywords: ["can solar energy run a house", "solar se ghar chalta hai", "cn solr enegy rn house", "can solor enrg run hous", "cann soar enrgy rn haus", "home solr system price", "run house", "ghar chala"],
@@ -1401,7 +1484,7 @@ const translations = {
         do_solar_panels_work_on_cloudy_days: {
             keywords: ["do solar panels work on cloudy days", "badal me solar kaam karta hai", "do solr panals wrk on clody days", "du solor penel work on clowdy dayz", "do soar panal wrks in cludy day", "is solr effctv in cloudy", "overcast day solar work", "cloudy", "badal"],
             answer_en: "Yes, solar panels still work on cloudy days, but their output is reduced. They can typically generate 10-25% of their normal output.",
-            answer_hi: "हाँ, सोलर पैनल बादलों वाले दिनों में भी काम करते हैं, लेकिन उनका उत्पादन कम हो जाता है। वे आमतौर पर अपने सामान्य उत्पादन का 10-25% उत्पन्न कर सकते हैं。"
+            answer_hi: "हाँ, सोलर पैनल बादलों वाले दिनों में भी काम करते हैं, लेकिन उनका उत्पादन कम हो जाता है। वे आमतौर पर अपने सामान्य उत्पादन का 10-25% उत्पन्न कर सकते हैं।"
         },
         common_problems_in_solar_panels: {
             keywords: ["common problems in solar panels", "solar panel ki samasyayein", "common problms in solr panals", "comon prblms in solor penels", "comn problm soar panal", "problems", "samasyayein"],
@@ -1451,7 +1534,7 @@ const translations = {
         how_does_solar_help_environment: {
             keywords: ["how does solar help the environment", "solar se paryavaran ko kaise fayda", "how duz solr help enviroment", "hw dos solor hlp enviornment", "hou does soar halp envirmnt", "environment effect solar", "envmt benifits of sola", "impct of solr on envmnt", "zero emission solar", "environment", "paryavaran"],
             answer_en: "Solar energy reduces carbon emissions by using a clean, renewable energy source instead of fossil fuels. It helps combat climate change and air pollution.",
-            answer_hi: "सौर ऊर्जा जीवाश्म ईंधन के बजाय एक स्वच्छ, नवीकरणीय ऊर्जा स्रोत का उपयोग करके कार्बन उत्सर्जन को कम करती है। यह जलवायु परिवर्तन और वायु प्रदूषण से लड़ने में मदद करती है。"
+            answer_hi: "सौर ऊर्जा जीवाश्म ईंधन के बजाय एक स्वच्छ, नवीकरणीय ऊर्जा स्रोत का उपयोग करके कार्बन उत्सर्जन को कम करती है। यह जलवायु परिवर्तन और वायु प्रदूषण से लड़ने में मदद करती है।"
         },
         what_is_solar_cell_efficiency: {
             keywords: ["what is solar cell efficiency", "solar cell efficiency kya hai", "effciency of solr panel", "effcncy improvmnt tips"],
@@ -1506,7 +1589,7 @@ const translations = {
         solar_vs_wind: {
             keywords: ["comparison solar vs wind", "diff between solar n wind"],
             answer_en: "Solar energy depends on sunlight and is quiet. Wind energy depends on wind and can be noisy. Both are renewable sources.",
-            answer_hi: "सौर ऊर्जा सूरज की रोशनी पर निर्भर करती है और शांत होती है। पवन ऊर्जा हवा पर निर्भर करती है और शोरगुल वाली हो सकती है। दोनों ही नवीकरणीय स्रोत हैं。"
+            answer_hi: "सौर ऊर्जा सूरज की रोशनी पर निर्भर करती है और शांत होती है। पवन ऊर्जा हवा पर निर्भर करती है और शोरगुल वाली हो सकती है। दोनों ही नवीकरणीय स्रोत हैं।"
         },
         solar_in_rain: {
             keywords: ["can solar work in rain", "solr wrk in rany seson"],
@@ -1516,7 +1599,7 @@ const translations = {
         solar_panel_angle: {
             keywords: ["panel angle solar setup", "y solar panel angle imp"],
             answer_en: "The angle of solar panels is crucial for maximum sunlight absorption. The best angle depends on your location and the season.",
-            answer_hi: "अधिकतम सूर्य के प्रकाश को अवशोषित करने के लिए सोलर पैनलों का कोण महत्वपूर्ण है। सबसे अच्छा कोण आपके स्थान और मौसम पर निर्भर करता है。"
+            answer_hi: "अधिकतम सूर्य के प्रकाश को अवशोषित करने के लिए सोलर पैनलों का कोण महत्वपूर्ण है। सबसे अच्छा कोण आपके स्थान और मौसम पर निर्भर करता है।"
         },
         solar_in_space: {
             keywords: ["can solar work in space", "solr wrk in spce"],
@@ -1529,19 +1612,6 @@ const translations = {
             answer_hi: "लागत आपके बिजली के बिल और छत के आकार पर निर्भर करती है। हमारा कैलकुलेटर आपके लिए अनुमानित खर्च बता सकता है।"
         },
     },
-    
-    maintenance_title: { en: "🛠️ Solar System Maintenance & Health Check", hi: "🛠️ सोलर सिस्टम का रखरखाव और स्वास्थ्य जाँच" },
-    nav_maintenance: { en: "Maintenance", hi: "रखरखाव" },
-    capacity_selector_label: { en: "Select Your System Capacity:", hi: "अपनी सिस्टम क्षमता चुनें:" },
-    capacity_small_option: { en: "Small System (< 5kW)", hi: "छोटा सिस्टम (< 5kW)" },
-    capacity_medium_option: { en: "Medium System (5kW - 20kW)", hi: "मध्यम सिस्टम (5kW - 20kW)" },
-    capacity_large_option: { en: "Large/Commercial (> 20kW)", hi: "बड़ा/व्यावसायिक (> 20kW)" },
-    capacity_tips_title: { en: "Capacity-Based Maintenance Tips", hi: "क्षमता-आधारित रखरखाव के सुझाव" },
-    monthly_checklist_title: { en: "🗓️ Monthly Maintenance Checklist", hi: "🗓️ मासिक रखरखाव चेकलिस्ट" },
-    monthly_checklist_subtitle: { en: "Complete these tasks every month to ensure maximum system efficiency.", hi: "सिस्टम की अधिकतम दक्षता सुनिश्चित करने के लिए हर महीने इन कार्यों को पूरा करें।" },
-    save_log_btn: { en: "✅ Save Log", hi: "✅ लॉग सहेजें" },
-    annual_check_title: { en: "⭐ Annual Professional Inspection", hi: "⭐ वार्षिक पेशेवर निरीक्षण" },
-    annual_check_subtitle: { en: "Schedule a professional technician once a year for an overall health check-up.", hi: "समग्र स्वास्थ्य जाँच के लिए साल में एक बार एक पेशेवर तकनीशियन को बुलाएँ।" },
 };
 
 function changeLanguage(lang) {
@@ -1573,7 +1643,7 @@ function changeLanguage(lang) {
         }
     });
     
-    
+    // Update chart labels
     if (chart) {
         chart.data.labels = [translations['emi_label_12'][currentLanguage], translations['emi_label_24'][currentLanguage], translations['emi_label_36'][currentLanguage]];
         chart.data.datasets[0].label = translations['monthly_payment_label'][currentLanguage];
@@ -1588,17 +1658,24 @@ function changeLanguage(lang) {
         pollutionChart.update();
     }
     
-    
+    // Update Maintenance Module text
     renderMaintenanceChecklist();
     updateMaintenanceTips();
 
-    
+    // Re-render panels list if visible
     if (document.querySelector('#solar-panels').classList.contains('active')) {
         renderSolarPanels();
     }
 
- 
+    // Re-generate explainer script if on page
     if (document.querySelector('#ai-explainer').classList.contains('active') && lastCalc) {
         generateAI();
     }
 }
+
+// Initialize calculator mobile fixes when page loads, if the section is active
+window.addEventListener('load', function() {
+    if (document.querySelector('.calculator-section.active')) {
+        initCalculatorMobileFixes();
+    }
+});
