@@ -1695,3 +1695,4 @@ window.addEventListener('load', function() {
         initCalculatorMobileFixes();
     }
 });
+
