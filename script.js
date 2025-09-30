@@ -8,8 +8,8 @@ let map, communityMap, drawnItems, drawControl, chart, pollutionChart, lastCalc,
     detectedLon = null;
 
 // ===== API TOKENS (Dummy Tokens for demonstration) =====
-const AQI_TOKEN = "344eccebdba6c88cebea99bdd4aeac5f440e0a9b"; 
-const NASA_TOKEN = "i4Vjou3u6oUk3dmcGGDixhSIviXGPDB6pR7gTY0H";
+const AQI_TOKEN = "344eccebdba6c88cebea99bdd4aeac5f440e0a9b"; 
+const NASA_TOKEN = "i4Vjou3u6oUk3dmcGGDixhSIviXGPDB6pR7gTY0H"; // Not used in the new function for better reliability
 
 // ===== CALCULATOR MOBILE FIXES =====
 function initCalculatorMobileFixes() {
@@ -78,33 +78,49 @@ async function getAQI(lat, lon) {
     }
 }
 
+// ===== UPDATED NASA FUNCTION FOR RELIABILITY =====
 async function getNasaSolarData(lat, lon) {
     const weatherInfoEl = document.getElementById("weather-info");
     if (weatherInfoEl) {
         weatherInfoEl.style.display = 'block';
+        // Note: The new request uses climatology data (long-term average), which is stable.
         weatherInfoEl.textContent = translations['nasa_fetching'][currentLanguage];
     }
-    const url = `https://power.larc.nasa.gov/api/temporal/daily/point?parameters=ALLSKY_SFC_SW_DWN&community=RE&longitude=${lon}&latitude=${lat}&start=20250901&end=20250921&format=JSON&api_key=${NASA_TOKEN}`;
+    
+    // NEW NASA POWER Climatology URL (Annual Average):
+    // Requests ALLSKY_SFC_SW_DWN (All Sky Surface Shortwave Downward Irradiance)
+    // Removed API key for higher reliability on public data.
+    const url = `https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=ALLSKY_SFC_SW_DWN&community=RE&longitude=${lon}&latitude=${lat}&format=JSON`;
+    
     try {
         const res = await fetch(url);
-        if (!res.ok) throw new Error(`NASA Error: ${res.status}`);
+        if (!res.ok) throw new Error(`NASA Error: ${res.status}`); 
         const data = await res.json();
-        const avgInsolation = data.properties.parameter.ALLSKY_SFC_SW_DWN.mean;
+
+        // The structure for climatology data is different, we extract the Annual average.
+        const insolationData = data.properties.parameter.ALLSKY_SFC_SW_DWN;
+        const avgInsolation = insolationData.ANN; 
+
         if (avgInsolation > 0) {
             if (weatherInfoEl) {
-                weatherInfoEl.textContent = `☀️ NASA Data: Avg. ${avgInsolation.toFixed(2)} kWh/m²/day.`;
+                weatherInfoEl.textContent = `☀️ NASA Data (Avg. Annual): ${avgInsolation.toFixed(2)} kWh/m²/day.`;
             }
-            return { avgInsolation };
+            return { avgInsolation }; 
         }
-        throw new Error('Invalid NASA data');
+        
+        throw new Error('Invalid NASA data or ANN value is zero');
+
     } catch (e) {
-        console.error("NASA Data Fetch Error:", e);
+        console.error("NASA Data Fetch Error (Using Climatology):", e);
         if (weatherInfoEl) {
             weatherInfoEl.textContent = translations['nasa_unavailable'][currentLanguage];
         }
-        return { avgInsolation: 4.5 }; // Default fallback value
+        // India Average fallback value
+        return { avgInsolation: 4.5 }; 
     }
 }
+// ===== END UPDATED NASA FUNCTION =====
+
 
 async function getAddress(lat, lon) {
     const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
@@ -247,7 +263,7 @@ function setupEventListeners() {
         const observer = new MutationObserver(function(mutations) {
             mutations.forEach(function(mutation) {
                 if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-                    if (mutation.target.classList.contains('calculator-section') && 
+                    if (mutation.target.classList.contains('calculator-section') && 
                         mutation.target.classList.contains('active')) {
                         setTimeout(initCalculatorMobileFixes, 100);
                     }
@@ -682,7 +698,7 @@ function displaySubsidyResults(subsidyInfo, totalCost, loanInfo) {
         subsidyEl.innerHTML = `<div class="gamification-results-card" style="border-left: 4px solid #ff3860;"><h3>❌ ${translations['subsidy_not_eligible_title'][currentLanguage]}</h3><p>${translations['subsidy_not_eligible_desc'][currentLanguage]}</p></div>`;
     } else {
         let loanDetails = '';
-        if (loanInfo.bankName !== 'No Loan' && loanInfo.bankName !== translations['no_loan'][currentLanguage]) {
+        if (loanInfo.bankName !== 'NONE' && loanInfo.bankName !== translations['no_loan'][currentLanguage]) {
             const monthlyEMI = loanInfo.monthlyEMI.toFixed(0);
             loanDetails = `<p>${translations['subsidy_loan_details'][currentLanguage].replace('{bankName}', loanInfo.bankName).replace('{monthlyEMI}', monthlyEMI.toLocaleString()).replace('{loanTenure}', loanInfo.loanTenure)}</p>`;
         }
@@ -721,7 +737,7 @@ function checkSubsidyEligibility(state, income, monthlyBill, systemSize, totalCo
     // State-specific income checks are omitted for simplification
     // if (state === 'MP' && income > 25000) { ... }
 
-    return { isEligible, schemeName, subsidyAmount }; 
+    return { isEligible, schemeName, subsidyAmount }; 
 }
 
 function getLoanInfo(bank, costAfterSubsidy) {
@@ -861,7 +877,7 @@ const maintenanceCapacityTips = {
 function renderMaintenanceChecklist() {
     const ul = document.getElementById('maintenance-checklist');
     if (!ul) return;
-    ul.innerHTML = ''; 
+    ul.innerHTML = ''; 
 
     maintenanceChecklistData.forEach((item, index) => {
         const li = document.createElement('li');
